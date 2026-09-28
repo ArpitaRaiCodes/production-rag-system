@@ -63,7 +63,7 @@ without any code change: `Qwen/Qwen2-1.5B-Instruct`,
 ## Install
 
 ```bash
-git clone https://github.com/<your-username>/personal-rag.git
+git clone https://github.com/ArpitaRaiCodes/production-rag-system.git
 cd personal-rag
 
 python -m venv .venv
