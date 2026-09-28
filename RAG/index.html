@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Personal RAG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ground:#eceeec;
+    --panel:#ffffff;
+    --ink:#16211f;
+    --muted:#5d6b68;
+    --line:#d5dbd8;
+    --accent:#0f5c4e;
+    --accent-soft:#e2ede9;
+    --danger:#9c3a2f;
+    --radius:10px;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --serif:"IBM Plex Serif",Georgia,serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+    font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  }
+  button{font:inherit;color:inherit;cursor:pointer}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .shell{display:grid;grid-template-columns:330px 1fr;height:100vh;height:100dvh}
+
+  /* ---------------- knowledge base rail ---------------- */
+  .rail{
+    background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  .rail-head{padding:20px 20px 14px;border-bottom:1px solid var(--line)}
+  .brand{font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0}
+  .brand span{display:block;font-size:12.5px;font-weight:400;color:var(--muted);margin-top:2px}
+  .counts{display:flex;gap:18px;margin-top:14px;font-size:12.5px;color:var(--muted)}
+  .counts b{display:block;font-size:17px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+
+  .drop{
+    margin:16px 20px;padding:18px 14px;border:1.5px dashed var(--line);border-radius:var(--radius);
+    text-align:center;background:#fafbfa;transition:border-color .15s,background .15s;
+  }
+  .drop.hot{border-color:var(--accent);background:var(--accent-soft)}
+  .drop p{margin:0 0 10px;font-size:13px;color:var(--muted)}
+  .btn{
+    border:1px solid var(--accent);background:var(--accent);color:#fff;
+    padding:8px 15px;border-radius:7px;font-size:13.5px;font-weight:500;
+  }
+  .btn:hover{background:#0c4b40}
+  .btn.ghost{background:transparent;color:var(--accent)}
+  .btn.ghost:hover{background:var(--accent-soft)}
+  .btn.link{border:0;background:none;color:var(--danger);padding:4px 0;font-size:12.5px;text-decoration:underline}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+
+  .list-head{
+    display:flex;align-items:baseline;justify-content:space-between;
+    padding:6px 20px 8px;font-size:13px;color:var(--muted);
+  }
+  .docs{flex:1;overflow-y:auto;padding:0 12px 12px;min-height:0}
+  .doc{
+    display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;
+    padding:10px 8px;border-radius:8px;
+  }
+  .doc:hover{background:#f4f6f5}
+  .doc-name{font-size:13.5px;font-weight:500;word-break:break-word}
+  .doc-meta{grid-column:1;font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+  .x{
+    grid-row:1/3;border:1px solid var(--line);background:var(--panel);color:var(--muted);
+    width:28px;height:28px;border-radius:7px;font-size:15px;line-height:1;
+  }
+  .x:hover{border-color:var(--danger);color:var(--danger)}
+  .empty{padding:18px 20px;font-size:13px;color:var(--muted)}
+  .rail-foot{border-top:1px solid var(--line);padding:12px 20px 16px;display:flex;justify-content:space-between;align-items:center}
+  .dot{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .dot i{width:7px;height:7px;border-radius:50%;background:#b7bfbc;display:inline-block}
+  .dot.on i{background:var(--accent)}
+
+  /* ---------------- conversation ---------------- */
+  .main{display:flex;flex-direction:column;min-width:0;min-height:0}
+  .topbar{
+    display:flex;align-items:center;gap:14px;padding:12px 26px;
+    border-bottom:1px solid var(--line);background:var(--panel);
+  }
+  .modes{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .modes button{border:0;background:var(--panel);padding:6px 13px;font-size:13px;color:var(--muted)}
+  .modes button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:500}
+  .topbar .spacer{flex:1}
+  .topbar label{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .topbar input[type=number]{
+    width:52px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;
+    font:inherit;font-size:13px;font-family:var(--mono);
+  }
+
+  .thread{flex:1;overflow-y:auto;padding:28px 26px 8px;min-height:0}
+  .inner{max-width:720px;margin:0 auto}
+  .welcome{padding:48px 0 0}
+  .welcome h2{font-family:var(--serif);font-size:26px;font-weight:400;margin:0 0 8px;letter-spacing:-.01em}
+  .welcome p{color:var(--muted);margin:0 0 22px;max-width:52ch}
+  .seeds{display:flex;flex-wrap:wrap;gap:8px}
+  .seed{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 14px;font-size:13px;color:var(--muted)}
+  .seed:hover{border-color:var(--accent);color:var(--accent)}
+
+  .turn{margin-bottom:26px}
+  .q{
+    font-family:var(--serif);font-size:18px;line-height:1.45;
+    border-left:3px solid var(--accent);padding-left:14px;margin:0 0 16px;
+  }
+  .a{font-family:var(--serif);font-size:16px;line-height:1.72;white-space:pre-wrap}
+  .a cite{
+    font-family:var(--sans);font-style:normal;font-size:11px;font-weight:600;
+    background:var(--accent-soft);color:var(--accent);border-radius:4px;
+    padding:1px 5px;margin:0 1px;vertical-align:1px;
+  }
+  .caret{display:inline-block;width:7px;height:16px;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .status{color:var(--muted);font-size:13.5px}
+
+  .sources{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  .sources h4{margin:0 0 10px;font-size:12.5px;font-weight:500;color:var(--muted)}
+  .src{display:grid;grid-template-columns:26px 1fr;gap:12px;padding:10px 0;border-top:1px solid #eceeed}
+  .src:first-of-type{border-top:0}
+  .src-n{
+    font-family:var(--mono);font-size:12px;color:var(--accent);
+    background:var(--accent-soft);border-radius:6px;height:22px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .src-file{font-size:13px;font-weight:500}
+  .src-file em{font-style:normal;color:var(--muted);font-weight:400}
+  .src-text{font-size:13px;color:#3d4a47;margin:4px 0 6px;max-height:4.6em;overflow:hidden}
+  .src.open .src-text{max-height:none}
+  .meter{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .meter span{height:4px;background:#e3e7e5;border-radius:2px;flex:1;max-width:150px;overflow:hidden}
+  .meter span i{display:block;height:100%;background:var(--accent)}
+  .more{border:0;background:none;color:var(--accent);font-size:12px;padding:0;text-decoration:underline}
+
+  .composer{border-top:1px solid var(--line);background:var(--panel);padding:14px 26px 18px}
+  .field{
+    max-width:720px;margin:0 auto;display:flex;gap:10px;align-items:flex-end;
+    border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 14px;background:var(--panel);
+  }
+  .field:focus-within{border-color:var(--accent)}
+  .field textarea{
+    flex:1;border:0;resize:none;font:inherit;font-size:15px;line-height:1.5;
+    max-height:180px;padding:6px 0;background:transparent;
+  }
+  .field textarea:focus{outline:0}
+  .hint{max-width:720px;margin:8px auto 0;font-size:11.5px;color:var(--muted)}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+    background:var(--ink);color:#f3f5f4;padding:10px 18px;border-radius:8px;
+    font-size:13.5px;box-shadow:0 6px 20px rgba(22,33,31,.22);z-index:60;max-width:90vw;
+  }
+  .toast.bad{background:var(--danger)}
+
+  dialog{
+    border:1px solid var(--line);border-radius:12px;padding:22px;max-width:400px;
+    font-family:var(--sans);color:var(--ink);
+  }
+  dialog::backdrop{background:rgba(22,33,31,.35)}
+  dialog h3{margin:0 0 8px;font-size:17px}
+  dialog p{margin:0 0 14px;font-size:13.5px;color:var(--muted)}
+  dialog input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font:inherit;font-family:var(--mono);font-size:13px}
+  .row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+  .btn.dark{background:var(--danger);border-color:var(--danger)}
+  .btn.plain{background:var(--panel);border-color:var(--line);color:var(--ink)}
+
+  .railtoggle{display:none}
+  @media (max-width:860px){
+    .shell{grid-template-columns:1fr}
+    .rail{position:fixed;inset:0 auto 0 0;width:86%;max-width:330px;z-index:50;transform:translateX(-101%);transition:transform .2s}
+    .rail.show{transform:none;box-shadow:0 0 40px rgba(22,33,31,.2)}
+    .railtoggle{display:inline-block;border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:6px 11px;font-size:13px}
+    .thread,.composer,.topbar{padding-left:16px;padding-right:16px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ============ knowledge base ============ -->
+  <aside class="rail" id="rail">
+    <div class="rail-head">
+      <h1 class="brand">Personal RAG<span>Your documents, searched locally</span></h1>
+      <div class="counts">
+        <div>files<b id="cDocs">0</b></div>
+        <div>chunks<b id="cChunks">0</b></div>
+      </div>
+    </div>
+
+    <div class="drop" id="drop">
+      <p>Drop a file here to add it to your knowledge base</p>
+      <button class="btn" id="pick">Choose a file</button>
+      <input type="file" id="file" hidden accept=".pdf,.txt,.md,.markdown,.docx,.csv,.json" />
+    </div>
+
+    <div class="list-head">
+      <span id="listLabel">Nothing stored yet</span>
+      <button class="btn link" id="clearAll" hidden>Clear everything</button>
+    </div>
+
+    <div class="docs" id="docs">
+      <p class="empty">Add a PDF, Word file, text file or CSV. It gets split into chunks, embedded, and stored in the vector database on your machine.</p>
+    </div>
+
+    <div class="rail-foot">
+      <span class="dot" id="serverDot"><i></i><span id="serverText">connecting</span></span>
+      <button class="btn ghost" id="warm">Load model</button>
+    </div>
+  </aside>
+
+  <!-- ============ conversation ============ -->
+  <main class="main">
+    <div class="topbar">
+      <button class="railtoggle" id="railToggle">Files</button>
+      <div class="modes" role="group" aria-label="Response mode">
+        <button id="mAsk" aria-pressed="true">Answer</button>
+        <button id="mFind" aria-pressed="false">Passages only</button>
+      </div>
+      <div class="spacer"></div>
+      <label for="topk">results <input type="number" id="topk" min="1" max="10" value="3" /></label>
+    </div>
+
+    <div class="thread" id="thread">
+      <div class="inner" id="inner">
+        <div class="welcome" id="welcome">
+          <h2>Ask your documents anything.</h2>
+          <p>Every answer is written only from passages found in the files you uploaded, and each one shows you exactly which passage it came from.</p>
+          <div class="seeds">
+            <button class="seed">Summarise the main points</button>
+            <button class="seed">What are the key dates?</button>
+            <button class="seed">List every recommendation</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="field">
+        <textarea id="q" rows="1" placeholder="Ask a question about your documents"></textarea>
+        <button class="btn" id="send">Ask</button>
+      </div>
+      <p class="hint">Enter sends, Shift+Enter adds a line. Answers come from your files only.</p>
+    </div>
+  </main>
+</div>
+
+<dialog id="confirm">
+  <h3 id="dTitle">Delete this document?</h3>
+  <p id="dBody"></p>
+  <input id="dInput" hidden placeholder="DELETE" />
+  <div class="row">
+    <button class="btn plain" id="dCancel">Keep it</button>
+    <button class="btn dark" id="dOk">Delete</button>
+  </div>
+</dialog>
+
+<script>
+const API = location.origin;
+const $ = (id) => document.getElementById(id);
+const state = { mode: "ask", busy: false, docs: [] };
+
+/* ---------- helpers ---------- */
+function toast(message, bad = false) {
+  const el = document.createElement("div");
+  el.className = "toast" + (bad ? " bad" : "");
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), bad ? 6000 : 3200);
+}
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function withCitations(text) {
+  return esc(text).replace(/\[(\d{1,2})\]/g, '<cite>$1</cite>');
+}
+function bytes(n) {
+  return n > 999 ? (n / 1000).toFixed(1) + "k chars" : n + " chars";
+}
+async function api(path, options = {}) {
+  const res = await fetch(API + path, options);
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch (_) {}
+    throw new Error(detail);
+  }
+  return res.status === 204 ? null : res.json();
+}
+function scrollDown() {
+  const t = $("thread");
+  t.scrollTop = t.scrollHeight;
+}
+
+/* ---------- knowledge base ---------- */
+async function refresh() {
+  try {
+    const [docs, stats] = await Promise.all([api("/api/documents"), api("/api/stats")]);
+    state.docs = docs;
+    $("cDocs").textContent = stats.documents;
+    $("cChunks").textContent = stats.chunks;
+    $("clearAll").hidden = docs.length === 0;
+    $("listLabel").textContent = docs.length
+      ? `${docs.length} file${docs.length > 1 ? "s" : ""} stored`
+      : "Nothing stored yet";
+
+    const box = $("docs");
+    if (!docs.length) {
+      box.innerHTML = '<p class="empty">Add a PDF, Word file, text file or CSV. It gets split into chunks, embedded, and stored in the vector database on your machine.</p>';
+      return;
+    }
+    box.innerHTML = docs.map((d) => `
+      <div class="doc">
+        <div class="doc-name">${esc(d.filename)}</div>
+        <div class="doc-meta">${d.chunks} chunks · ${bytes(d.characters)} · ${esc(d.doc_id)}</div>
+        <button class="x" data-id="${esc(d.doc_id)}" data-name="${esc(d.filename)}" title="Delete ${esc(d.filename)}" aria-label="Delete ${esc(d.filename)}">×</button>
+      </div>`).join("");
+    box.querySelectorAll(".x").forEach((b) =>
+      b.addEventListener("click", () => askDelete(b.dataset.id, b.dataset.name))
+    );
+  } catch (err) {
+    toast("Cannot reach the backend: " + err.message, true);
+  }
+}
+
+async function health() {
+  try {
+    const h = await api("/api/health");
+    $("serverDot").classList.add("on");
+    $("serverText").textContent = h.llm_loaded ? "model ready" : "server ready";
+    $("warm").hidden = h.llm_loaded;
+  } catch (_) {
+    $("serverDot").classList.remove("on");
+    $("serverText").textContent = "offline";
+  }
+}
+
+async function upload(file) {
+  if (!file) return;
+  const body = new FormData();
+  body.append("file", file);
+  toast(`Indexing ${file.name}…`);
+  $("pick").disabled = true;
+  try {
+    const r = await api("/api/documents", { method: "POST", body });
+    toast(r.message);
+    await refresh();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    $("pick").disabled = false;
+    $("file").value = "";
+  }
+}
+
+/* ---------- delete dialogs ---------- */
+let pending = null;
+function askDelete(id, name) {
+  pending = { kind: "one", id, name };
+  $("dTitle").textContent = "Delete this document?";
+  $("dBody").textContent = `Every chunk from ${name} will be removed from the vector database. Your original file is deleted too. This cannot be undone.`;
+  $("dInput").hidden = true;
+  $("dOk").textContent = "Delete";
+  $("confirm").showModal();
+}
+function askClear() {
+  pending = { kind: "all" };
+  $("dTitle").textContent = "Clear the whole vector database?";
+  $("dBody").textContent = "Every document, every embedding and every uploaded file is removed. Type DELETE to confirm.";
+  const input = $("dInput");
+  input.hidden = false;
+  input.value = "";
+  $("dOk").textContent = "Clear everything";
+  $("confirm").showModal();
+  input.focus();
+}
+async function runDelete() {
+  if (!pending) return;
+  if (pending.kind === "all" && $("dInput").value.trim().toUpperCase() !== "DELETE") {
+    toast("Type DELETE to confirm", true);
+    return;
+  }
+  $("confirm").close();
+  try {
+    const path = pending.kind === "all"
+      ? "/api/documents?confirm=true"
+      : "/api/documents/" + encodeURIComponent(pending.id);
+    const r = await api(path, { method: "DELETE" });
+    toast(r.message);
+    await refresh();
+  } catch (err) {
+    toast(err.message, true);
+  }
+  pending = null;
+}
+
+/* ---------- conversation ---------- */
+function turnElement(question) {
+  $("welcome")?.remove();
+  const wrap = document.createElement("section");
+  wrap.className = "turn";
+  wrap.innerHTML = `<p class="q">${esc(question)}</p><div class="a"><span class="status">Searching your documents…</span></div>`;
+  $("inner").appendChild(wrap);
+  scrollDown();
+  return { wrap, body: wrap.querySelector(".a") };
+}
+
+function renderSources(wrap, sources) {
+  if (!sources.length) return;
+  const box = document.createElement("div");
+  box.className = "sources";
+  box.innerHTML = `<h4>Passages used, ranked by similarity</h4>` + sources.map((s) => `
+    <div class="src">
+      <div class="src-n">${s.rank}</div>
+      <div>
+        <div class="src-file">${esc(s.filename || "document")}${s.page ? ` <em>page ${s.page}</em>` : ""}</div>
+        <div class="src-text">${esc(s.text)}</div>
+        <div class="meter"><span><i style="width:${Math.max(4, Math.round(s.score * 100))}%"></i></span>${s.score.toFixed(3)}
+          <button class="more">show all</button>
+        </div>
+      </div>
+    </div>`).join("");
+  box.querySelectorAll(".more").forEach((b) =>
+    b.addEventListener("click", () => {
+      const card = b.closest(".src");
+      card.classList.toggle("open");
+      b.textContent = card.classList.contains("open") ? "show less" : "show all";
+    })
+  );
+  wrap.appendChild(box);
+  scrollDown();
+}
+
+async function findOnly(question, topk) {
+  const { wrap, body } = turnElement(question);
+  try {
+    const r = await api("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: question, top_k: topk }),
+    });
+    body.innerHTML = r.results.length
+      ? `<span class="status">Top ${r.results.length} matching passages.</span>`
+      : `<span class="status">Nothing in your documents matches that.</span>`;
+    renderSources(wrap, r.results);
+  } catch (err) {
+    body.innerHTML = `<span class="status">${esc(err.message)}</span>`;
+  }
+}
+
+async function ask(question, topk) {
+  const { wrap, body } = turnElement(question);
+  let answer = "";
+  let sources = [];
+
+  const res = await fetch(API + "/api/ask/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, top_k: topk }),
+  });
+  if (!res.ok || !res.body) throw new Error("The server did not respond");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let first = true;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() || "";
+
+    for (const frame of frames) {
+      const type = (frame.match(/^event: (.+)$/m) || [])[1];
+      const raw = (frame.match(/^data: (.*)$/m) || [])[1];
+      if (!type || raw === undefined) continue;
+      let payload;
+      try { payload = JSON.parse(raw); } catch (_) { continue; }
+
+      if (type === "sources") {
+        sources = payload;
+        body.innerHTML = sources.length
+          ? '<span class="status">Writing an answer…</span>'
+          : "";
+      } else if (type === "token") {
+        if (first) { body.innerHTML = ""; first = false; }
+        answer += payload.text;
+        body.innerHTML = withCitations(answer) + '<span class="caret"></span>';
+        scrollDown();
+      } else if (type === "error") {
+        throw new Error(payload.detail);
+      }
+    }
+  }
+  body.innerHTML = withCitations(answer.trim()) || '<span class="status">No answer was produced.</span>';
+  renderSources(wrap, sources);
+}
+
+async function send() {
+  const box = $("q");
+  const question = box.value.trim();
+  if (!question || state.busy) return;
+  const topk = Math.min(10, Math.max(1, parseInt($("topk").value, 10) || 3));
+
+  state.busy = true;
+  $("send").disabled = true;
+  box.value = "";
+  box.style.height = "auto";
+
+  try {
+    if (state.mode === "find") await findOnly(question, topk);
+    else await ask(question, topk);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    state.busy = false;
+    $("send").disabled = false;
+    health();
+    box.focus();
+  }
+}
+
+/* ---------- wiring ---------- */
+$("pick").addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", (e) => upload(e.target.files[0]));
+$("clearAll").addEventListener("click", askClear);
+$("dCancel").addEventListener("click", () => $("confirm").close());
+$("dOk").addEventListener("click", runDelete);
+$("send").addEventListener("click", send);
+$("warm").addEventListener("click", async () => {
+  $("warm").disabled = true;
+  $("serverText").textContent = "loading model";
+  try { await api("/api/warmup", { method: "POST" }); toast("Model loaded and ready."); }
+  catch (err) { toast(err.message, true); }
+  finally { $("warm").disabled = false; health(); }
+});
+
+$("mAsk").addEventListener("click", () => setMode("ask"));
+$("mFind").addEventListener("click", () => setMode("find"));
+function setMode(mode) {
+  state.mode = mode;
+  $("mAsk").setAttribute("aria-pressed", mode === "ask");
+  $("mFind").setAttribute("aria-pressed", mode === "find");
+  $("q").placeholder = mode === "ask"
+    ? "Ask a question about your documents"
+    : "Search for a phrase in your documents";
+  $("send").textContent = mode === "ask" ? "Ask" : "Find";
+}
+
+const drop = $("drop");
+["dragenter", "dragover"].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("hot"); })
+);
+["dragleave", "drop"].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("hot"); })
+);
+drop.addEventListener("drop", (e) => upload(e.dataTransfer.files[0]));
+
+const q = $("q");
+q.addEventListener("input", () => {
+  q.style.height = "auto";
+  q.style.height = Math.min(q.scrollHeight, 180) + "px";
+});
+q.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("seed")) { q.value = e.target.textContent; q.focus(); send(); }
+});
+$("railToggle").addEventListener("click", () => $("rail").classList.toggle("show"));
+
+refresh();
+health();
+setInterval(health, 20000);
+</script>
+</body>
+</html>
